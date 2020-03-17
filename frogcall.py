@@ -64,19 +64,6 @@ def make_chunk_files(chunks,write=False):
 
    chunk_count+=1
 
-
-###############
-# Define some constants 
-
-# Set foldername for the split sound files and summary file.
-output_folder = 'Compare'
-
-# Summary filename
-outfile = 'Frog_calls.csv'
-
-# Set duration for silence
-silence_duration = 750
-
 def get_api_keys(file):
     try:
         key_file = open(file, 'r')
@@ -87,6 +74,19 @@ def get_api_keys(file):
     return key_dict
 
 if __name__ ==  '__main__ ': 
+
+
+   ###############
+   # Define some constants 
+
+   # Set foldername for the split sound files and summary file.
+   output_folder = 'Compare'
+
+   # Summary filename
+   outfile = 'Frog_calls.csv'
+
+   # Set duration for silence
+   silence_duration = 750
 
    parser = argparse.ArgumentParser(
         usage = "%(prog)s path_to_calls ...",
