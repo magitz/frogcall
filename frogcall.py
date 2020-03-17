@@ -6,6 +6,7 @@ from pydub.silence import split_on_silence
 import glob,re,os
 import speech_recognition as sr
 import yaml
+import argparse
 
 
 def split_audio(filepath,silence_len):
@@ -63,10 +64,9 @@ def make_chunk_files(chunks,write=False):
 
    chunk_count+=1
 
+
 ###############
 # Define some constants 
-# Set the path to the sound files
-file_path = '/content/drive/My Drive/FrogAI/From Marcel/'
 
 # Set foldername for the split sound files and summary file.
 output_folder = 'Compare'
@@ -87,6 +87,20 @@ def get_api_keys(file):
     return key_dict
 
 if __name__ ==  '__main__ ': 
+
+   parser = argparse.ArgumentParser(
+        usage = "%(prog)s path_to_calls ...",
+        description = "Parses frog calls"
+    )
+   parser.add_argument(
+        "-v","--version", action='version',
+        version = "version 0.3"
+    )
+   parser.add_argument(
+        "-p", "--path", type=str, 
+        help = "Path to folder of frog calls"
+    )
+
    # Create a recognizer
    recog = sr.Recognizer()
 
@@ -95,11 +109,10 @@ if __name__ ==  '__main__ ':
    api_key_dict = get_api_keys('apikeys')
 
    # Make output dirctory if it doesn't exist.
-
- output_folder_path = os.path.join(file_path, output_folder)
+   output_folder_path = os.path.join(args.p, output_folder)
 
    if (not os.path.isdir(output_folder_path)):
-   os.mkdir(output_folder_path)
+      os.mkdir(output_folder_path)
 
    # Setup the output file
    outfile_name = os.path.join(output_folder_path,outfile)
@@ -114,19 +127,18 @@ if __name__ ==  '__main__ ':
    #OUT.write("Original_filename,New_filename,Full_Trasncription,Text_Transcription,Date_Transcription,Formatted_Date,Chunk_N,Number_of_chunks\n")
    OUT.write("Filename,Google_Transcription,Wit_Transcription,IBM_Transcription\n")
 
-files = os.path.join(file_path,'*.wav')
+   files = os.path.join(args.p,'*.wav')
 
-for file in glob.glob(files):
+   for file in glob.glob(files):
+      Google_transcript =transcribe_file(file)
+      Wit_transcript = transcribe_file(file, recognizer='Wit')
+      #IBM_transcript = transcribe_file(file,recognizer='IBM')
 
-   Google_transcript =transcribe_file(file)
-   Wit_transcript = transcribe_file(file, recognizer='Wit')
-   #IBM_transcript = transcribe_file(file,recognizer='IBM')
+      print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n   IBM: {IBM_transcript}\n")
 
-   print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n   IBM: {IBM_transcript}\n")
+      output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,IBM_transcript,"\n"])
+      OUT.write(output_string)
 
-   output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,IBM_transcript,"\n"])
-   OUT.write(output_string)
-
-  print("\n\n")
+      print("\n\n")
 
 OUT.close()
