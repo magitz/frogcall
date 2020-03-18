@@ -19,16 +19,16 @@ def split_audio(filepath,silence_len):
     return chunks
 
 # Do Speech Recognition on an audio file
-def transcribe_file(file, language='fr-FR', recognizer="Google", duration=20):
+def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", duration=20):
    Audio = sr.AudioFile(file)
    with Audio as source:
      audio = recog.record(source,duration=duration)
    if recognizer == "Google":
      transcript = recog.recognize_google(audio,language=language)
    elif recognizer == "Wit":
-     transcript = recog.recognize_wit(audio, api_key_dict[wit_key])
+     transcript = recog.recognize_wit(audio, key_dict['wit_key'])
    elif recognizer == "IBM":
-     transcript = recog.recognize_ibm(audio, api_key_dict[IBM_USER], api_key_dict[IBM_PASS],language=language) 
+     transcript = recog.recognize_ibm(audio, key_dict['IBM_USER'], key_dict['IBM_PASS'],language=language) 
 
    return transcript
 
@@ -68,13 +68,12 @@ def get_api_keys(file):
     try:
         key_file = open(file, 'r')
     except:
-        f"Can't open {file} for reading API keys"
+        print("Can't open apikey file for reading API keys")
     
-    key_dict= yaml.load(key_file)
+    key_dict= yaml.load(key_file, Loader=yaml.SafeLoader)
     return key_dict
 
-if __name__ ==  '__main__ ': 
-
+if __name__ == '__main__': 
 
    ###############
    # Define some constants 
@@ -101,6 +100,8 @@ if __name__ ==  '__main__ ':
         help = "Path to folder of frog calls"
     )
 
+   args = parser.parse_args()
+
    # Create a recognizer
    recog = sr.Recognizer()
 
@@ -109,7 +110,7 @@ if __name__ ==  '__main__ ':
    api_key_dict = get_api_keys('apikeys')
 
    # Make output dirctory if it doesn't exist.
-   output_folder_path = os.path.join(args.p, output_folder)
+   output_folder_path = os.path.join(args.path, output_folder)
 
    if (not os.path.isdir(output_folder_path)):
       os.mkdir(output_folder_path)
@@ -127,16 +128,18 @@ if __name__ ==  '__main__ ':
    #OUT.write("Original_filename,New_filename,Full_Trasncription,Text_Transcription,Date_Transcription,Formatted_Date,Chunk_N,Number_of_chunks\n")
    OUT.write("Filename,Google_Transcription,Wit_Transcription,IBM_Transcription\n")
 
-   files = os.path.join(args.p,'*.wav')
+   files = os.path.join(args.path,'*.wav')
 
    for file in glob.glob(files):
-      Google_transcript =transcribe_file(file)
-      Wit_transcript = transcribe_file(file, recognizer='Wit')
-      #IBM_transcript = transcribe_file(file,recognizer='IBM')
+      Google_transcript =transcribe_file(file, api_key_dict)
+      Wit_transcript = transcribe_file(file, api_key_dict, recognizer='Wit')
+      #IBM_transcript = transcribe_file(file, api_key_dict, recognizer='IBM')
 
-      print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n   IBM: {IBM_transcript}\n")
+      #print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n   IBM: {IBM_transcript}\n")
+      print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n")
 
-      output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,IBM_transcript,"\n"])
+      #output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,IBM_transcript,"\n"])
+      output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,"\n"])
       OUT.write(output_string)
 
       print("\n\n")
