@@ -3,10 +3,9 @@
 import dateparser
 from pydub import AudioSegment
 from pydub.silence import split_on_silence
-import glob,re,os
+import glob,re, os, sys, argparse
 import speech_recognition as sr
 import yaml
-import argparse
 
 
 def split_audio(filepath,silence_len):
@@ -20,6 +19,9 @@ def split_audio(filepath,silence_len):
 
 # Do Speech Recognition on an audio file
 def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", duration=20):
+   # Create a recognizer
+   recog = sr.Recognizer()
+
    Audio = sr.AudioFile(file)
    with Audio as source:
      audio = recog.record(source,duration=duration)
@@ -29,6 +31,8 @@ def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", durat
      transcript = recog.recognize_wit(audio, key_dict['wit_key'])
    elif recognizer == "IBM":
      transcript = recog.recognize_ibm(audio, key_dict['IBM_USER'], key_dict['IBM_PASS'],language=language) 
+   else:
+      sys.exit(f"{recognizer} is not a valid transcription tool.\n")
 
    return transcript
 
@@ -64,6 +68,37 @@ def make_chunk_files(chunks,write=False):
 
    chunk_count+=1
 
+def prep_outputs(output_folder, outfile, trans):
+   # Make output dirctory if it doesn't exist
+   if (not os.path.isdir(output_folder)):
+      os.mkdir(output_folder)
+
+   # Setup the output summary file
+   outfile_name = os.path.join(output_folder,outfile)
+   
+   # If the file doesn't exist, create it and add the header.
+   if (not os.path.isfile(outfile_name)):
+      try:
+         OUT=open(outfile_name, 'w')
+         if args.verbose:
+            print(f"Writing output to {outfile_name}")
+      except:
+         print("Can't open summary for writing: %s" %(outfile_name))
+
+      header = "Filename," + ','.join(transcriptions) + "\n"
+      OUT.write(header)
+
+   # If it does exist, append to existing file.
+   else:
+      try:
+         OUT=open(outfile_name, 'a')
+         if args.verbose:
+            print(f"Writing output to {outfile_name}")
+      except:
+         print("Can't open summary for writing: %s" %(outfile_name))
+
+   return OUT
+
 def get_api_keys(file):
     try:
         key_file = open(file, 'r')
@@ -75,73 +110,71 @@ def get_api_keys(file):
 
 if __name__ == '__main__': 
 
-   ###############
-   # Define some constants 
-
-   # Set foldername for the split sound files and summary file.
-   output_folder = 'Compare'
-
-   # Summary filename
-   outfile = 'Frog_calls.csv'
-
-   # Set duration for silence
-   silence_duration = 750
-
+   # Parse command line arguments
    parser = argparse.ArgumentParser(
-        usage = "%(prog)s path_to_calls ...",
+        usage = "%(prog)s -p path_to_call -o output_folder -s summary_file -d silence duration",
         description = "Parses frog calls"
     )
    parser.add_argument(
-        "-v","--version", action='version',
+        "--version", action='version',
         version = "version 0.3"
     )
    parser.add_argument(
-        "-p", "--path", type=str, 
-        help = "Path to folder of frog calls"
+        "-f", "--file", type=str, action="store", dest = "file",
+        help = "Frog call file"
+    )
+   parser.add_argument(
+      "-o", "--output_folder", type = str, 
+      default = 'Compare', action="store", dest = "output_folder",
+      help="*Folder* name for the split sound files and summary file. Default: ./Compare"
+   )
+   parser.add_argument(
+      "-s", "--summary_file", type=str,
+      default = 'Frog_calls.csv', action="store", dest = "summary_file",
+      help = "Name for summary file, default: Frog_calls.csv"
+   )
+   parser.add_argument(
+      "-d", "--silence_duration", type=int, dest = "silence_duration",
+      default = 750, action="store",
+      help = "Silence duration when splitting audio clips"
+   )
+   parser.add_argument(
+      "-t", "--transcriptions", dest = "transcriptions",
+      choices=['Google', 'Wit', 'IBM'],
+      default = ["Google"], nargs='+',
+      help = "Transcription service to use: Google, Wit, IBM. Can be used multiple times. Default= 'Google'"
+   )
+   parser.add_argument(
+        "-v","--verbose", action = "store_true", dest = "verbose",
+        help = "Turn on high verbosity and printing to screen"
     )
 
    args = parser.parse_args()
+   transcriptions =  [item for item in args.transcriptions]
+   path = os.path.dirname(args.file)
 
-   # Create a recognizer
-   recog = sr.Recognizer()
+   OUT = prep_outputs(args.output_folder, args.summary_file,args.transcriptions)
 
    # Load API keys into dict--"apikeys" should be a yaml file with your API keys
    # See apikey.example for example file
    api_key_dict = get_api_keys('apikeys')
+   
+   transcript={}
 
-   # Make output dirctory if it doesn't exist.
-   output_folder_path = os.path.join(args.path, output_folder)
+   for trans in transcriptions:
+      transcript[trans] = transcribe_file(args.file, api_key_dict, recognizer=trans)
 
-   if (not os.path.isdir(output_folder_path)):
-      os.mkdir(output_folder_path)
-
-   # Setup the output file
-   outfile_name = os.path.join(output_folder_path,outfile)
-   print(f"Writing output to {outfile_name}")
-
-   try:
-      OUT=open(outfile_name, 'w')
-   except:
-      print("Can't open outfile for writing: %s" %(outfile_name))
-
-
-   #OUT.write("Original_filename,New_filename,Full_Trasncription,Text_Transcription,Date_Transcription,Formatted_Date,Chunk_N,Number_of_chunks\n")
-   OUT.write("Filename,Google_Transcription,Wit_Transcription,IBM_Transcription\n")
-
-   files = os.path.join(args.path,'*.wav')
-
-   for file in glob.glob(files):
-      Google_transcript =transcribe_file(file, api_key_dict)
-      Wit_transcript = transcribe_file(file, api_key_dict, recognizer='Wit')
-      #IBM_transcript = transcribe_file(file, api_key_dict, recognizer='IBM')
-
-      #print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n   IBM: {IBM_transcript}\n")
-      print(f" Transcript of {os.path.basename(file)}:\n   Google: {Google_transcript}\n   Wit: {Wit_transcript}\n")
-
-      #output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,IBM_transcript,"\n"])
-      output_string= ",".join([os.path.basename(file),Google_transcript,Wit_transcript,"\n"])
-      OUT.write(output_string)
-
+   
+   if args.verbose : 
+      print(f" Transcript of {os.path.basename(args.file)}:\n ") 
+      for trans in transcriptions:
+         print(f"{trans} : {transcript[trans]} \n")
       print("\n\n")
+
+   output_string = os.path.basename(args.file) 
+   for key, value in transcript.items():
+      output_string = ','.join([output_string,value])
+   output_string = output_string  + "\n" 
+   OUT.write(output_string)
 
    OUT.close()
