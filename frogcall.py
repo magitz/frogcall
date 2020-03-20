@@ -7,16 +7,6 @@ import glob,re, os, sys, argparse
 import speech_recognition as sr
 import yaml
 
-
-def split_audio(filepath,silence_len):
-    sound = AudioSegment.from_wav(filepath)
-    dBFS = sound.dBFS
-    chunks = split_on_silence(sound, 
-        min_silence_len = silence_len,
-        silence_thresh = dBFS-16,
-        keep_silence = 250 )#optional
-    return chunks
-
 # Do Speech Recognition on an audio file
 def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", duration=20):
    # Create a recognizer
@@ -46,27 +36,30 @@ def split_transcript(transcript):
   
    return text,date
 
-def make_chunk_files(chunks,write=False):
+# Split audio file based on silence
+def split_audio(filepath,silence_len):
+    sound = AudioSegment.from_wav(filepath)
+    dBFS = sound.dBFS
+    chunks = split_on_silence(sound, 
+        min_silence_len = silence_len,
+        silence_thresh = dBFS-16,
+        keep_silence = 250 ) #optional
+    return chunks
+
+def make_chunk_files(chunks, file_name, out_folder):
    chunk_count=0
    for chunk in chunks:
-     name_text = text[:35].strip().replace(' ', '_')  # Rename files based on transcribed text
-     if len(name_text) <= 4:                          # But keep original name if transcription is too short
-       name_text = os.path.basename(file)
+      # Name for the chunk files, replacing spaces in filenames with "_"
+      new_name= os.path.join(out_folder,os.path.splitext(file_name)[0].replace(' ', '_')) + "_" + str(chunk_count) + ".wav"
 
-   new_name= os.path.join(file_path,output_folder,name_text) + "_" + str(chunk_count) + ".wav"
-  
-
-   file_handle = chunk.export(new_name, 
-                              format='wav',
-                              bitrate='192k')
-    
-   if write:
-      # Write summary information to output file.
-      output_string= ",".join([os.path.basename(file), os.path.basename(new_name), transcript, text, date, str(formatted_date), str(chunk_count), str(len(mychunks))])
-      OUT.write(output_string)
-      OUT.write('\n')
-
-   chunk_count+=1
+      # Export the chunk file
+      file_handle = chunk.export(new_name, 
+                                 format='wav',
+                                 bitrate='192k')
+     
+      chunk_count+=1
+   return chunk_count
+   
 
 def prep_outputs(output_folder, outfile, trans):
    # Make output dirctory if it doesn't exist
@@ -117,7 +110,7 @@ if __name__ == '__main__':
     )
    parser.add_argument(
         "--version", action='version',
-        version = "version 0.3"
+        version = "version 0.4"
     )
    parser.add_argument(
         "-f", "--file", type=str, action="store", dest = "file",
@@ -164,17 +157,33 @@ if __name__ == '__main__':
    for trans in transcriptions:
       transcript[trans] = transcribe_file(args.file, api_key_dict, recognizer=trans)
 
-   
+   if 'Google' in transcriptions:
+      text,date = split_transcript(transcript['Google'])
+      formatted_date = dateparser.parse(date, languages=['fr'], locales=['fr-PF'])
+   else:
+      if args.verbose:
+         print('No Google transcript requested, date will not be parsed\n')
+
+   file_chunks = split_audio(args.file,args.silence_duration)
+   n_chunks = make_chunk_files(file_chunks, os.path.basename(args.file), args.output_folder)
+
    if args.verbose : 
       print(f" Transcript of {os.path.basename(args.file)}:\n ") 
       for trans in transcriptions:
          print(f"{trans} : {transcript[trans]} \n")
+      if formatted_date:
+         print(f"Date: {formatted_date}\n")
       print("\n\n")
 
-   output_string = os.path.basename(args.file) 
-   for key, value in transcript.items():
-      output_string = ','.join([output_string,value])
-   output_string = output_string  + "\n" 
-   OUT.write(output_string)
+   for chunk in range(n_chunks):
+      output_string = os.path.basename(args.file)
+      chunk_name = os.path.join(args.output_folder,os.path.splitext(args.file)[0].replace(' ', '_')) + "_" + str(chunk) + ".wav"
+      output_string = ','.join([output_string,chunk_name])
+      if 'Google' in transcriptions:
+         output_string = ','.join([output_string,formatted_date.isoformat()])
+      for key, value in transcript.items():
+         output_string = ','.join([output_string,value])
+      output_string = output_string  + "\n" 
+      OUT.write(output_string)
 
    OUT.close()
