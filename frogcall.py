@@ -96,7 +96,7 @@ def get_api_keys(file):
     try:
         key_file = open(file, 'r')
     except:
-        print("Can't open apikey file for reading API keys")
+        print(f"Can't open apikey file for reading API keys: {file}")
     
     key_dict= yaml.load(key_file, Loader=yaml.SafeLoader)
     return key_dict
@@ -150,7 +150,8 @@ if __name__ == '__main__':
 
    # Load API keys into dict--"apikeys" should be a yaml file with your API keys
    # See apikey.example for example file
-   api_key_dict = get_api_keys('apikeys')
+   api_file=sys.path[0] + '/apikeys'
+   api_key_dict = get_api_keys(api_file)
    
    transcript={}
 
