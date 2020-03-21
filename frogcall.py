@@ -1,4 +1,25 @@
 #!/usr/bin/env python3
+""" frogcall.py
+   
+   This is a set of functions and a general script to parse audio from recorded frog calls.
+
+   These files begin with French audio which describes the species, location and date
+   the recording. The script transcribes the audio with one or more text to speech services, 
+   parses out the recoding date, and outputs the transcriptions. The script also splits the 
+   original audio using periods of silence to create individual calls and to separate the 
+   speaking from the frog calls themselves.
+
+   Author: Matt Gitzendanner
+           magitz@ufl.edu
+           University of Florida
+           Department of Biology
+   
+   License:
+      CC BY-SA 4.0
+   
+   Version history:
+      0.5: First functional release: March 21, 2020
+"""
 
 import dateparser
 from pydub import AudioSegment
@@ -7,8 +28,17 @@ import glob,re, os, sys, argparse
 import speech_recognition as sr
 import yaml
 
-# Do Speech Recognition on an audio file
 def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", duration=20):
+   """Transcribe an audio file with Speech Recognition library.
+   
+   Positional Parameters: 
+      the file, a dictionary of apikeys
+
+   Key word parameters: 
+      language= audio language 
+      recognizer= speech recognizer ot use 
+      duration= duration of audio to transcribe.
+   """
    # Create a recognizer
    recog = sr.Recognizer()
 
@@ -26,9 +56,14 @@ def transcribe_file(file, key_dict, language='fr-FR', recognizer="Google", durat
 
    return transcript
 
-# Split transcription into text and date
-#   Method adapted from: https://stackoverflow.com/questions/4510709/find-the-index-of-the-first-digit-in-a-string
 def split_transcript(transcript):
+   """Split transcription into text and date using first digit in transcription.
+
+      Method is adapted from: https://stackoverflow.com/questions/4510709/find-the-index-of-the-first-digit-in-a-string
+      
+      In the Google transcript of the sample data, the date is the first digit of the transcript text.
+      This may or may not be appropriate for your text, this works for our needs.
+   """
    match = re.search(r"\d",transcript)
    if match is not None:
       text=transcript[:match.start()]
@@ -36,17 +71,23 @@ def split_transcript(transcript):
   
    return text,date
 
-# Split audio file based on silence
-def split_audio(filepath,silence_len):
-    sound = AudioSegment.from_wav(filepath)
-    dBFS = sound.dBFS
-    chunks = split_on_silence(sound, 
-        min_silence_len = silence_len,
-        silence_thresh = dBFS-16,
-        keep_silence = 250 ) #optional
-    return chunks
+def split_audio(filepath, silence_len):
+   """Split audio file based on periods of silence.
+
+      Positional Parameters:
+         the path to the audio file,
+         the length of silence in milliseconds for splitting the audio.
+   """
+   sound = AudioSegment.from_wav(filepath)
+   dBFS = sound.dBFS
+   chunks = split_on_silence(sound, 
+      min_silence_len = silence_len,
+      silence_thresh = dBFS-16,
+      keep_silence = 250 ) #optional
+   return chunks
 
 def make_chunk_files(chunks, file_name, out_folder):
+   """Make the individual chunk files created with split_audio."""
    chunk_count=0
    for chunk in chunks:
       # Name for the chunk files, replacing spaces in filenames with "_"
@@ -62,7 +103,8 @@ def make_chunk_files(chunks, file_name, out_folder):
    
 
 def prep_outputs(output_folder, outfile, trans):
-   # Make output dirctory if it doesn't exist
+   """Prepare the output folder and header of summary file."""
+   # Make output directory if it doesn't exist
    if (not os.path.isdir(output_folder)):
       os.mkdir(output_folder)
 
@@ -97,24 +139,25 @@ def prep_outputs(output_folder, outfile, trans):
    return OUT
 
 def get_api_keys(file):
-    try:
-        key_file = open(file, 'r')
-    except:
-        print(f"Can't open apikey file for reading API keys: {file}")
+   """Read the api key file into a dictionary."""
+   try:
+      key_file = open(file, 'r')
+   except:
+      print(f"Can't open apikey file for reading API keys: {file}")
     
-    key_dict= yaml.load(key_file, Loader=yaml.SafeLoader)
-    return key_dict
+   key_dict= yaml.load(key_file, Loader=yaml.SafeLoader)
+   return key_dict
 
 if __name__ == '__main__': 
 
    # Parse command line arguments
    parser = argparse.ArgumentParser(
-        usage = "%(prog)s -p path_to_call -o output_folder -s summary_file -d silence duration",
+        usage = "%(prog)s -f call_file -o output_folder -s summary_file -d silence duration -t transcription service to use",
         description = "Parses frog calls"
     )
    parser.add_argument(
         "--version", action='version',
-        version = "version 0.4"
+        version = "version 0.5"
     )
    parser.add_argument(
         "-f", "--file", type=str, action="store", dest = "file",
