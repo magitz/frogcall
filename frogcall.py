@@ -81,7 +81,8 @@ def prep_outputs(output_folder, outfile, trans):
       header = "Original_Filename,Chunk_file_name"
       if 'Google' in transcriptions:
          header = header + ",Parsed_Date"
-      header = ','.join((transcriptions) + "\n"
+      header = ','.join(transcriptions) + "\n"
+
       OUT.write(header)
 
    # If it does exist, append to existing file.
