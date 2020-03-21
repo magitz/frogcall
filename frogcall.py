@@ -14,8 +14,7 @@
            University of Florida
            Department of Biology
    
-   License:
-      CC BY-SA 4.0
+   License: GLP3
    
    Version history:
       0.5: First functional release: March 21, 2020
